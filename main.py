@@ -5,6 +5,7 @@ FastAPI + webhook de Whapi + Groq AI + Discord.
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
@@ -161,6 +162,17 @@ async def webhook(request: Request):
     return {"status": "ok"}
 
 
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "bot": "Dafne — Coral Mujeres"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
