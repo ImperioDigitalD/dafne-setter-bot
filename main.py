@@ -6,6 +6,7 @@ FastAPI + webhook de Whapi + Groq AI + Discord.
 import asyncio
 import logging
 import os
+import random
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
@@ -122,6 +123,11 @@ async def webhook(request: Request):
 
     # Generar respuesta con Groq
     response_text = await groq.generate_response(conv)
+
+    # Delay humano: esperar entre 30 y 120 segundos antes de responder
+    delay = random.randint(30, 120)
+    log.info(f"Esperando {delay}s antes de responder a {phone}")
+    await asyncio.sleep(delay)
 
     # Enviar por WhatsApp
     sent = await whapi.send_message(phone, response_text)

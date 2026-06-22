@@ -25,7 +25,7 @@ class GroqClient:
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
-                *conv.history,
+                *conv.history[-20:],
             ],
             temperature=0.7,
             max_tokens=300,
