@@ -210,24 +210,21 @@ def _clean_phone(raw: str) -> str:
     return digits
 
 
-def parse_prospect_from_message(text: str) -> tuple[str, str] | None:
+def parse_prospect_from_message(text: str) -> tuple[str, str, str, str] | None:
     """
-    Detecta nombre y teléfono en mensajes como:
-      "confirmación de agenda coral Carlos +5233123456"
-      "conf agenda coral Carlos García +52 33 1234 5678"
-      "coral Carlos +1 (214) 436-2760"
-      "coral María (214) 436 2760"
+    Detecta nombre, teléfono, flujo y programa en mensajes como:
+      "coral Carlos +52331234567 alumno negocio-de-poder"
+      "coral Carlos +52331234567 confirmacion"
+      "coral Carlos +52331234567"  → flujo por defecto: alumno
 
-    Retorna (nombre, telefono) o None si no aplica.
+    Retorna (nombre, telefono, flow_type, programa) o None si no aplica.
+    flow_type: "alumno" | "confirmacion"
     """
     normalized = _normalize(text)
 
-    # Debe contener "coral"
     if "coral" not in normalized:
         return None
 
-    # Regex amplio: + opcional, seguido de dígitos con espacios/paréntesis/guiones
-    # Captura: +1 (214) 436-2760 | +52 33 1234 5678 | 214-436-2760 | (214) 436 2760
     phone_match = re.search(r"\+?[\d][\d\s\(\)\-\.]{6,22}[\d]", text)
     if not phone_match:
         return None
@@ -239,16 +236,31 @@ def parse_prospect_from_message(text: str) -> tuple[str, str] | None:
     # Extraer nombre: texto entre "coral" y el teléfono
     coral_pos = normalized.find("coral")
     before_phone = text[coral_pos + len("coral"):phone_match.start()].strip()
-
-    # Quitar palabras de relleno comunes
-    filler = r"\b(de|agenda|confirmacion|confirmaci[oó]n|conf|para|el|la|los|las)\b"
+    filler = r"\b(de|agenda|confirmacion|confirmaci[oó]n|conf|para|el|la|los|las|alumno)\b"
     name = re.sub(filler, "", before_phone, flags=re.IGNORECASE).strip()
     name = re.sub(r"\s+", " ", name).strip()
 
     if not name:
         return None
 
-    return name, phone
+    # Detectar flujo: texto DESPUÉS del teléfono
+    after_phone = text[phone_match.end():].strip()
+    after_normalized = _normalize(after_phone)
+
+    if "confirmacion" in after_normalized or "confirmación" in after_normalized:
+        flow_type = "confirmacion"
+        programa = ""
+    elif "alumno" in after_normalized:
+        flow_type = "alumno"
+        # El programa es lo que viene después de "alumno"
+        alumno_match = re.search(r"alumno\s+(\S+)", after_normalized)
+        programa = alumno_match.group(1) if alumno_match else ""
+    else:
+        # Por defecto: flujo alumno
+        flow_type = "alumno"
+        programa = ""
+
+    return name, phone, flow_type, programa
 
 
 @bot.event
@@ -263,15 +275,17 @@ async def on_message(message: discord.Message):
         await bot.process_commands(message)
         return
 
-    name, phone = result
+    name, phone, flow_type, programa = result
 
     if not _conv_manager:
         await message.channel.send("Error: gestor de conversaciones no disponible.")
         return
 
-    # Crear conversación y guardar el nombre
+    # Crear conversación y guardar el nombre, flujo y programa
     conv = await _conv_manager.get_or_create(phone)
     conv.name = name
+    conv.flow_type = flow_type
+    conv.programa = programa
     await _conv_manager.save(conv)
 
     # Enviar primer mensaje de WhatsApp
@@ -289,12 +303,16 @@ async def on_message(message: discord.Message):
 
     # Confirmar en Discord
     status = "Mensaje enviado" if sent else "Error al enviar"
+    flujo_label = "Alumnos" if flow_type == "alumno" else "Confirmación de agenda"
     embed = discord.Embed(
         title=f"Nuevo setting iniciado — {name}",
         color=discord.Color.green() if sent else discord.Color.red(),
     )
     embed.add_field(name="Nombre detectado", value=name, inline=True)
     embed.add_field(name="Teléfono detectado", value=f"+{phone}", inline=True)
+    embed.add_field(name="Flujo", value=flujo_label, inline=True)
+    if programa:
+        embed.add_field(name="Programa", value=programa, inline=True)
     embed.add_field(name="Primer mensaje enviado", value=first_message[:300], inline=False)
     embed.set_footer(text=status)
     await message.channel.send(embed=embed)

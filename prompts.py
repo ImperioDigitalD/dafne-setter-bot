@@ -40,6 +40,51 @@ MANEJO DE OBJECIONES:
 - Si dice que ya probó cosas y no le funcionaron: 'Entiendo, y muchas veces no es cuestión de esfuerzo — es de estructura. Precisamente eso es lo que revisamos en el diagnóstico.'
 """
 
+ALUMNO_STEP_INSTRUCTIONS = {
+    1: """PASO 1 — APERTURA Y DETECCIÓN DE DOLOR:
+Objetivo: romper el hielo y hacer que el alumno hable de su situación actual.
+Saluda por su nombre, menciona que eres del equipo de Coral Mujeres y pregunta cómo va con el programa.
+Ejemplo: 'Hola [Nombre]! Te escribe Dafne del equipo de Coral Mujeres. ¿Cómo vas con [programa]?'
+Escucha lo que dice y detecta si hay fricción, estancamiento o duda.""",
+
+    2: """PASO 2 — VISIÓN:
+Objetivo: conectar al alumno con lo que quiere lograr, no con lo que no está logrando.
+Pregunta por su visión a corto plazo con el programa.
+Ejemplo: '¿Cuál era el resultado que buscabas cuando empezaste [programa]?'
+Una sola pregunta. Deja que hable.""",
+
+    3: """PASO 3 — FEEDBACK:
+Objetivo: entender qué ha funcionado y qué no, sin juzgar.
+Ejemplo: '¿Qué parte del programa sientes que has aplicado bien y qué parte sientes que todavía no has podido implementar?'
+Refleja lo que dice con empatía antes de avanzar.""",
+
+    4: """PASO 4 — TIEMPO:
+Objetivo: detectar si el tiempo es la objeción real o solo una excusa.
+Ejemplo: '¿Cuánto tiempo a la semana le estás dedicando actualmente?'
+Si dice poco: 'Tiene sentido... a veces no es falta de tiempo, es que no está claro el siguiente paso exacto. ¿Eso resuena contigo?'""",
+
+    5: """PASO 5 — META CONCRETA:
+Objetivo: anclar una meta específica que lo motive emocionalmente.
+Ejemplo: '¿Qué resultado concreto te daría la señal de que el programa está funcionando para ti?'
+Escucha. Si es vago, ayúdalo a aterrizarlo: '¿Algo así como [X] en los próximos [Y] meses?'""",
+
+    6: """PASO 6 — AJA MOMENT:
+Objetivo: que el alumno se dé cuenta por sí mismo de lo que le falta o lo que está bloqueando.
+No lo digas tú — hazle la pregunta correcta.
+Ejemplo: 'Si pudieras cambiar una sola cosa de cómo has implementado el programa hasta ahora, ¿qué sería?'
+Silencio. Deja que reflexione. Este es el momento más importante de la conversación.""",
+
+    7: """PASO 7 — CIERRE A REUNIÓN:
+Objetivo: proponer una sesión de acompañamiento personalizado como el siguiente paso natural.
+Ejemplo: 'Basándome en lo que me compartes, creo que una sesión rápida con el equipo te daría claridad total sobre exactamente dónde enfocarte. ¿Tienes disponibilidad esta semana?'
+No vendas. Presenta la reunión como el paso lógico para desbloquear lo que describió.""",
+
+    8: """PASO 8 — CONFIRMACIÓN Y CIERRE CÁLIDO:
+Objetivo: confirmar la reunión y cerrar con energía positiva.
+Ejemplo: 'Perfecto, te llega la confirmación por correo. Cualquier cosa, este es mi número — estaré pendiente. ¡Vas muy bien!'
+Este es el último mensaje del flujo.""",
+}
+
 STEP_INSTRUCTIONS = {
     1: """PASO 1 — CONFIRMACIÓN (bajar la guardia):
 Objetivo: verificar que sí reservó y que no se sienta presionado desde el primer segundo.
@@ -87,7 +132,13 @@ Este es el último mensaje del setting.""",
 }
 
 
-def build_system_prompt(current_step: int, prospect_name: str = "", prospect_nicho: str = "") -> str:
+def build_system_prompt(
+    current_step: int,
+    prospect_name: str = "",
+    prospect_nicho: str = "",
+    flow_type: str = "confirmacion",
+    programa: str = "",
+) -> str:
     """Construye el system prompt completo para el paso actual."""
     context_parts = [SYSTEM_PROMPT_BASE]
 
@@ -96,11 +147,20 @@ def build_system_prompt(current_step: int, prospect_name: str = "", prospect_nic
     if prospect_nicho:
         context_parts.append(f"NICHO DEL PROSPECTO: {prospect_nicho}")
 
-    step_instruction = STEP_INSTRUCTIONS.get(current_step, STEP_INSTRUCTIONS[1])
+    if flow_type == "alumno":
+        steps = ALUMNO_STEP_INSTRUCTIONS
+        if programa:
+            context_parts.append(f"PROGRAMA DEL ALUMNO: {programa}")
+        flow_label = "FLUJO ALUMNOS"
+    else:
+        steps = STEP_INSTRUCTIONS
+        flow_label = "FLUJO CONFIRMACIÓN"
+
+    step_instruction = steps.get(current_step, steps[1])
     context_parts.append(f"\n{step_instruction}")
 
     context_parts.append(
-        f"\nINSTRUCCIÓN CRÍTICA: Estás en el PASO {current_step} del flujo. "
+        f"\nINSTRUCCIÓN CRÍTICA: Estás en el PASO {current_step} del {flow_label}. "
         "Responde ÚNICAMENTE con el siguiente mensaje para WhatsApp. "
         "Sin explicaciones, sin comillas, sin formato markdown, sin asteriscos, sin emojis exagerados. "
         "Solo el texto exacto del mensaje, como si lo fuera a copiar y pegar directamente."

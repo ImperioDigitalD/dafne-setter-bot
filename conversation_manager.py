@@ -21,6 +21,8 @@ class Conversation:
     status: str = "active"
     created_at: str = ""
     updated_at: str = ""
+    flow_type: str = "confirmacion"   # "confirmacion" | "alumno"
+    programa: str = ""                # solo para flujo alumno
 
     def add_message(self, role: str, content: str):
         """Agrega un mensaje al historial. role: 'user' o 'assistant'."""
@@ -39,7 +41,7 @@ class ConversationManager:
         self.db_path = db_path or settings.db_path
 
     async def init_db(self):
-        """Crea la tabla si no existe."""
+        """Crea la tabla si no existe y migra columnas nuevas."""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS conversations (
@@ -52,9 +54,17 @@ class ConversationManager:
                     temperature TEXT DEFAULT 'frío',
                     status TEXT DEFAULT 'active',
                     created_at TEXT,
-                    updated_at TEXT
+                    updated_at TEXT,
+                    flow_type TEXT DEFAULT 'confirmacion',
+                    programa TEXT DEFAULT ''
                 )
             """)
+            # Migración: agregar columnas si no existen (DB ya creada)
+            for col, default in [("flow_type", "'confirmacion'"), ("programa", "''")]:
+                try:
+                    await db.execute(f"ALTER TABLE conversations ADD COLUMN {col} TEXT DEFAULT {default}")
+                except Exception:
+                    pass  # columna ya existe
             await db.commit()
 
     async def get_or_create(self, phone: str) -> Conversation:
@@ -78,15 +88,17 @@ class ConversationManager:
                     status=row["status"],
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
+                    flow_type=row["flow_type"] if "flow_type" in row.keys() else "confirmacion",
+                    programa=row["programa"] if "programa" in row.keys() else "",
                 )
 
             now = datetime.utcnow().isoformat()
             conv = Conversation(phone=phone, created_at=now, updated_at=now)
             await db.execute(
                 """INSERT INTO conversations
-                   (phone, name, nicho, instagram, current_step, history, temperature, status, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (phone, "", "", "", 1, "[]", "frío", "active", now, now),
+                   (phone, name, nicho, instagram, current_step, history, temperature, status, created_at, updated_at, flow_type, programa)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (phone, "", "", "", 1, "[]", "frío", "active", now, now, "confirmacion", ""),
             )
             await db.commit()
             return conv
@@ -98,7 +110,8 @@ class ConversationManager:
             await db.execute(
                 """UPDATE conversations SET
                    name = ?, nicho = ?, instagram = ?, current_step = ?,
-                   history = ?, temperature = ?, status = ?, updated_at = ?
+                   history = ?, temperature = ?, status = ?, updated_at = ?,
+                   flow_type = ?, programa = ?
                    WHERE phone = ?""",
                 (
                     conv.name,
@@ -109,6 +122,8 @@ class ConversationManager:
                     conv.temperature,
                     conv.status,
                     conv.updated_at,
+                    conv.flow_type,
+                    conv.programa,
                     conv.phone,
                 ),
             )
@@ -144,6 +159,8 @@ class ConversationManager:
                 status=row["status"],
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
+                flow_type=row["flow_type"] if "flow_type" in row.keys() else "confirmacion",
+                programa=row["programa"] if "programa" in row.keys() else "",
             )
 
     def extract_prospect_data(self, conv: Conversation, ai_response: str):

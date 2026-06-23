@@ -19,6 +19,8 @@ class GroqClient:
             current_step=conv.current_step,
             prospect_name=conv.name,
             prospect_nicho=conv.nicho,
+            flow_type=conv.flow_type,
+            programa=conv.programa,
         )
 
         completion = await self.client.chat.completions.create(
