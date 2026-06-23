@@ -1,8 +1,8 @@
 """
-Cliente de Groq para generar las respuestas de Dafne.
+Cliente de OpenAI para generar las respuestas de Dafne.
 """
 
-from groq import AsyncGroq  # groq>=1.0.0
+from openai import AsyncOpenAI
 from config import settings
 from prompts import build_system_prompt, get_summary_prompt
 from conversation_manager import Conversation
@@ -10,8 +10,8 @@ from conversation_manager import Conversation
 
 class GroqClient:
     def __init__(self):
-        self.client = AsyncGroq(api_key=settings.groq_api_key)
-        self.model = settings.groq_model
+        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.model = settings.openai_model
 
     async def generate_response(self, conv: Conversation) -> str:
         """Genera el siguiente mensaje de Dafne para el paso actual de la conversación."""
@@ -32,7 +32,6 @@ class GroqClient:
         )
 
         response = completion.choices[0].message.content.strip()
-        # Quitar comillas si el modelo las incluyó
         if response.startswith('"') and response.endswith('"'):
             response = response[1:-1].strip()
         return response
